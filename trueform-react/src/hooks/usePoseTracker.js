@@ -787,36 +787,8 @@ export function usePoseTracker() {
         URL.revokeObjectURL(uploadObjectUrlRef.current);
         uploadObjectUrlRef.current = null;
       }
-    }
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  }, []);
-
-  const closeSessionReport = useCallback(() => {
-    setSessionReport(null);
-  }, []);
-
-  // Strict cleanup on unmount
-  useEffect(() => {
-    const handleResize = () => syncCanvasDimensions();
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      isSessionActiveRef.current = false;
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-      stopCameraStream();
-      stopLiveClock();
-      if (visualCueTimerRef.current) {
-        clearTimeout(visualCueTimerRef.current);
-      }
       currentVisualCueRef.current = null;
-      // Note: We do NOT call pose.close() here to keep the WebAssembly module warm and ready
+      // Keep the shared MediaPipe instance warm between views.
       if (typeof window !== 'undefined' && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       }
