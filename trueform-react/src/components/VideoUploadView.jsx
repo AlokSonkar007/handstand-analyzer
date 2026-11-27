@@ -25,14 +25,40 @@ export function VideoUploadView({
   const [fileError, setFileError] = useState('');
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
+  const probeRef = useRef(null);
+  const pendingUrlRef = useRef(null);
+  const inspectionIdRef = useRef(0);
 
   useEffect(() => {
     if (!previewUrl) return undefined;
     return () => URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
 
+  useEffect(() => () => {
+    inspectionIdRef.current += 1;
+    if (probeRef.current) {
+      probeRef.current.onloadedmetadata = null;
+      probeRef.current.onerror = null;
+      probeRef.current.removeAttribute('src');
+      probeRef.current.load();
+    }
+    if (pendingUrlRef.current) URL.revokeObjectURL(pendingUrlRef.current);
+  }, []);
+
   const inspectFile = (file) => {
+    const inspectionId = ++inspectionIdRef.current;
     setFileError('');
+    if (probeRef.current) {
+      probeRef.current.onloadedmetadata = null;
+      probeRef.current.onerror = null;
+      probeRef.current.removeAttribute('src');
+      probeRef.current.load();
+      probeRef.current = null;
+    }
+    if (pendingUrlRef.current) {
+      URL.revokeObjectURL(pendingUrlRef.current);
+      pendingUrlRef.current = null;
+    }
     if (!file) return;
     if (!file.type.startsWith('video/')) {
       setFileError('Choose a video file (MP4, MOV, or WebM).');
@@ -44,33 +70,44 @@ export function VideoUploadView({
     }
 
     const url = URL.createObjectURL(file);
+    pendingUrlRef.current = url;
     const probe = document.createElement('video');
+    probeRef.current = probe;
     probe.preload = 'metadata';
     probe.onloadedmetadata = () => {
+      if (inspectionId !== inspectionIdRef.current) return;
       const { duration, videoWidth, videoHeight } = probe;
+      probeRef.current = null;
       probe.removeAttribute('src');
       probe.load();
       if (!Number.isFinite(duration) || duration <= 0) {
         URL.revokeObjectURL(url);
+        pendingUrlRef.current = null;
         setFileError('We could not read this video. Try exporting it again.');
         return;
       }
       if (duration > MAX_DURATION) {
         URL.revokeObjectURL(url);
+        pendingUrlRef.current = null;
         setFileError('Keep clips to 60 seconds or less for reliable analysis.');
         return;
       }
       if (videoHeight < MIN_HEIGHT) {
         URL.revokeObjectURL(url);
+        pendingUrlRef.current = null;
         setFileError('Video resolution is too low. Use a clip at least 240p tall.');
         return;
       }
+      pendingUrlRef.current = null;
       setSelectedFile(file);
       setPreviewUrl(url);
       setVideoAspectRatio(`${videoWidth} / ${videoHeight}`);
     };
     probe.onerror = () => {
+      if (inspectionId !== inspectionIdRef.current) return;
+      probeRef.current = null;
       URL.revokeObjectURL(url);
+      pendingUrlRef.current = null;
       setFileError('This video could not be opened. Try another file.');
     };
     probe.src = url;
@@ -183,6 +220,7 @@ export function VideoUploadView({
               id="skill-input"
               className="text2"
               placeholder="Skill (e.g. handstand, planche, push-up)"
+              aria-describedby={fileError ? 'upload-file-error' : undefined}
               value={skillInput}
               onChange={(event) => setSkillInput(event.target.value)}
               onKeyDown={(event) => {
@@ -201,7 +239,7 @@ export function VideoUploadView({
               {!isAnalyzing && <span aria-hidden="true">↗</span>}
             </button>
           </div>
-          {fileError && <p className="upload-error" role="alert">{fileError}</p>}
+          {fileError && <p className="upload-error" id="upload-file-error" role="alert">{fileError}</p>}
         </div>
         <div className="upload-tips">
           <span>01 · Keep your full body in frame</span>
@@ -211,7 +249,7 @@ export function VideoUploadView({
       </div>
 
       <div className="analysis-workspace" id="analysis-workspace" style={{ display: showWorkspace ? 'flex' : 'none' }}>
-        {isAnalyzing && <div className="analysis-progress"><span className="button-spinner" /> Tracking landmarks and evaluating your movement…</div>}
+        {isAnalyzing && <div className="analysis-progress" role="status" aria-live="polite"><span className="button-spinner" /> Tracking landmarks and evaluating your movement…</div>}
         <PoseCanvas
           videoRef={videoRef}
           canvasRef={canvasRef}
