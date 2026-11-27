@@ -169,8 +169,8 @@ export function usePoseTracker() {
   const cancelScheduledFrame = useCallback(() => {
     if (animationFrameIdRef.current === null) return;
     const video = videoRef.current;
-    if (frameCallbackTypeRef.current === 'video' && video?.cancelVideoFrameCallback) {
-      video.cancelVideoFrameCallback(animationFrameIdRef.current);
+    if (frameCallbackTypeRef.current === 'video') {
+      video?.cancelVideoFrameCallback?.(animationFrameIdRef.current);
     } else {
       cancelAnimationFrame(animationFrameIdRef.current);
     }
@@ -510,6 +510,7 @@ export function usePoseTracker() {
   const startLiveSession = useCallback(
     async (skillKey = 'pushup') => {
       cancelScheduledFrame();
+      analysisRunIdRef.current += 1;
       warmUpSpeech();
       ensureEngine();
       ensureMediaPipeSingleton();
@@ -569,6 +570,16 @@ export function usePoseTracker() {
 
       const video = videoRef.current;
       if (video) {
+        if (uploadEndedHandlerRef.current) {
+          video.removeEventListener('ended', uploadEndedHandlerRef.current);
+          uploadEndedHandlerRef.current = null;
+        }
+        video.onloadeddata = null;
+        video.onerror = null;
+        if (uploadObjectUrlRef.current) {
+          URL.revokeObjectURL(uploadObjectUrlRef.current);
+          uploadObjectUrlRef.current = null;
+        }
         video.muted = true;
         video.playsInline = true;
         video.src = '';
