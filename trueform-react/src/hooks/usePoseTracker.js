@@ -509,6 +509,7 @@ export function usePoseTracker() {
   // Start live session (User gesture click handler)
   const startLiveSession = useCallback(
     async (skillKey = 'pushup') => {
+      cancelScheduledFrame();
       warmUpSpeech();
       ensureEngine();
       ensureMediaPipeSingleton();
@@ -585,11 +586,12 @@ export function usePoseTracker() {
         };
       }
     },
-    [ensureEngine, startLiveClock, syncCanvasDimensions, scheduleNextFrame]
+    [cancelScheduledFrame, ensureEngine, startLiveClock, syncCanvasDimensions, scheduleNextFrame]
   );
 
   // Stop live session
   const stopLiveSession = useCallback(() => {
+    cancelScheduledFrame();
     isSessionActiveRef.current = false;
     isLiveModeRef.current = false;
     stopLiveClock();
@@ -620,7 +622,7 @@ export function usePoseTracker() {
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [stopLiveClock, stopCameraStream]);
+  }, [cancelScheduledFrame, stopLiveClock, stopCameraStream]);
 
   // Pause toggle
   const togglePause = useCallback(() => {
