@@ -48,6 +48,7 @@ export function usePoseTracker() {
   const engineRef = useRef(null);
   const liveSessionRef = useRef(null);
   const mediaStreamRef = useRef(null);
+  const uploadObjectUrlRef = useRef(null);
   const animationFrameIdRef = useRef(null);
   const visualCueTimerRef = useRef(null);
   const timerIntervalRef = useRef(null);
@@ -703,7 +704,9 @@ export function usePoseTracker() {
         video.playsInline = true;
         video.loop = false;
         video.srcObject = null;
-        video.src = URL.createObjectURL(file);
+        if (uploadObjectUrlRef.current) URL.revokeObjectURL(uploadObjectUrlRef.current);
+        uploadObjectUrlRef.current = URL.createObjectURL(file);
+        video.src = uploadObjectUrlRef.current;
 
         // Crucial: Handle video ended directly on the element
         const onVideoEnded = () => {
@@ -748,6 +751,42 @@ export function usePoseTracker() {
       video.pause();
       video.src = '';
       video.srcObject = null;
+    }
+    if (uploadObjectUrlRef.current) {
+      URL.revokeObjectURL(uploadObjectUrlRef.current);
+      uploadObjectUrlRef.current = null;
+    }
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }, []);
+
+  const closeSessionReport = useCallback(() => {
+    setSessionReport(null);
+  }, []);
+
+  // Strict cleanup on unmount
+  useEffect(() => {
+    const handleResize = () => syncCanvasDimensions();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      isSessionActiveRef.current = false;
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      stopCameraStream();
+      stopLiveClock();
+      if (visualCueTimerRef.current) {
+        clearTimeout(visualCueTimerRef.current);
+      }
+      if (uploadObjectUrlRef.current) {
+        URL.revokeObjectURL(uploadObjectUrlRef.current);
+        uploadObjectUrlRef.current = null;
+      }
     }
     const canvas = canvasRef.current;
     if (canvas) {
