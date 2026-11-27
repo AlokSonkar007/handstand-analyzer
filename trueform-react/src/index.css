@@ -1418,3 +1418,37 @@ body.live-active:not([data-section="live"]) .app-nav {
   .upload-tips { display: grid; gap: 8px; }
   .cue-badge { top: 58px; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 }
+
+
+/* ==========================================================================
+   8️⃣ ACCESSIBILITY & MOTION PREFERENCES
+   ========================================================================== */
+.brand {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+:where(button, input, a, [tabindex]):focus-visible {
+  outline: 2px solid #ff8a5c;
+  outline-offset: 3px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
