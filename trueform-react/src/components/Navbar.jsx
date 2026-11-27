@@ -23,13 +23,14 @@ export function Navbar({ activeSection, onNavigate, isLiveActive, onEndLiveSessi
   return (
     <header className="app-header">
       <div className="app-header-inner">
-        <div className="brand" onClick={() => handleNavClick('home')} style={{ cursor: 'pointer' }}>
+        <button type="button" className="brand" onClick={() => handleNavClick('home')} aria-label="CaliXAi home">
           CaliX<span className="accent">Ai</span>
-        </div>
-        <nav className={`app-nav ${isOpen ? 'is-open' : ''}`} id="app-nav">
+        </button>
+        <nav className={`app-nav ${isOpen ? 'is-open' : ''}`} id="app-nav" aria-label="Main navigation">
           <button
             type="button"
             className={`nav-btn ${activeSection === 'home' ? 'is-active' : ''}`}
+            aria-current={activeSection === 'home' ? 'page' : undefined}
             onClick={() => handleNavClick('home')}
           >
             Home
@@ -37,6 +38,7 @@ export function Navbar({ activeSection, onNavigate, isLiveActive, onEndLiveSessi
           <button
             type="button"
             className={`nav-btn ${activeSection === 'live' ? 'is-active' : ''}`}
+            aria-current={activeSection === 'live' ? 'page' : undefined}
             onClick={() => handleNavClick('live')}
           >
             Live Training
@@ -44,6 +46,7 @@ export function Navbar({ activeSection, onNavigate, isLiveActive, onEndLiveSessi
           <button
             type="button"
             className={`nav-btn ${activeSection === 'video' ? 'is-active' : ''}`}
+            aria-current={activeSection === 'video' ? 'page' : undefined}
             onClick={() => handleNavClick('video')}
           >
             Video Analysis
@@ -51,6 +54,7 @@ export function Navbar({ activeSection, onNavigate, isLiveActive, onEndLiveSessi
           <button
             type="button"
             className={`nav-btn ${activeSection === 'progress' ? 'is-active' : ''}`}
+            aria-current={activeSection === 'progress' ? 'page' : undefined}
             onClick={() => handleNavClick('progress')}
           >
             Progress
@@ -60,7 +64,9 @@ export function Navbar({ activeSection, onNavigate, isLiveActive, onEndLiveSessi
           type="button"
           className="nav-toggle"
           id="nav-toggle"
-          aria-label="Toggle navigation"
+          aria-label={isOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={isOpen}
+          aria-controls="app-nav"
           onClick={() => setIsOpen((prev) => !prev)}
         >
           <svg
