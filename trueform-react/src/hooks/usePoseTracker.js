@@ -50,6 +50,7 @@ export function usePoseTracker() {
   const mediaStreamRef = useRef(null);
   const uploadObjectUrlRef = useRef(null);
   const uploadEndedHandlerRef = useRef(null);
+  const analysisRunIdRef = useRef(0);
   const animationFrameIdRef = useRef(null);
   const frameCallbackTypeRef = useRef(null);
   const visualCueTimerRef = useRef(null);
@@ -163,6 +164,18 @@ export function usePoseTracker() {
         processFrameTickRef.current?.();
       });
     }
+  }, []);
+
+  const cancelScheduledFrame = useCallback(() => {
+    if (animationFrameIdRef.current === null) return;
+    const video = videoRef.current;
+    if (frameCallbackTypeRef.current === 'video' && video?.cancelVideoFrameCallback) {
+      video.cancelVideoFrameCallback(animationFrameIdRef.current);
+    } else {
+      cancelAnimationFrame(animationFrameIdRef.current);
+    }
+    animationFrameIdRef.current = null;
+    frameCallbackTypeRef.current = null;
   }, []);
 
   const processFrameTick = useCallback(() => {
@@ -383,6 +396,7 @@ export function usePoseTracker() {
   // Upload video scoring & feedback
   const runFinalFormScoring = useCallback(async () => {
     if (analysisFinalizedRef.current) return;
+    const runId = analysisRunIdRef.current;
     analysisFinalizedRef.current = true;
     setAnalysisFinalized(true);
     setIsAnalyzing(false);
@@ -441,8 +455,10 @@ export function usePoseTracker() {
         }
 
         const data = await response.json();
+        if (runId !== analysisRunIdRef.current) return;
         setCoachingAdvice(data.advice);
       } catch (err) {
+        if (runId !== analysisRunIdRef.current) return;
         console.error('Coaching advice error:', err);
         if (result.faults && result.faults.length > 0) {
           setCoachingAdvice(result.faults.map((f) => f.detail).join(' '));
@@ -672,6 +688,8 @@ export function usePoseTracker() {
   const startUploadAnalysis = useCallback(
     (file, skillName) => {
       if (!file) return;
+      analysisRunIdRef.current += 1;
+      cancelScheduledFrame();
 
       const skillConfig = resolveSkill(skillName);
       if (!skillConfig) {
@@ -753,11 +771,13 @@ export function usePoseTracker() {
         };
       }
     },
-    [ensureEngine, scheduleNextFrame, syncCanvasDimensions]
+    [cancelScheduledFrame, ensureEngine, scheduleNextFrame, syncCanvasDimensions]
   );
 
   // Reset upload session
   const resetUpload = useCallback(() => {
+    analysisRunIdRef.current += 1;
+    cancelScheduledFrame();
     isSessionActiveRef.current = false;
     isLiveModeRef.current = false;
     analysisFinalizedRef.current = false;
@@ -790,7 +810,7 @@ export function usePoseTracker() {
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, []);
+  }, [cancelScheduledFrame]);
 
   const closeSessionReport = useCallback(() => {
     setSessionReport(null);
@@ -804,15 +824,8 @@ export function usePoseTracker() {
     return () => {
       window.removeEventListener('resize', handleResize);
       isSessionActiveRef.current = false;
-      if (animationFrameIdRef.current !== null) {
-        if (frameCallbackTypeRef.current === 'video' && videoRef.current?.cancelVideoFrameCallback) {
-          videoRef.current.cancelVideoFrameCallback(animationFrameIdRef.current);
-        } else {
-          cancelAnimationFrame(animationFrameIdRef.current);
-        }
-        animationFrameIdRef.current = null;
-        frameCallbackTypeRef.current = null;
-      }
+      analysisRunIdRef.current += 1;
+      cancelScheduledFrame();
       stopCameraStream();
       stopLiveClock();
       if (visualCueTimerRef.current) {
@@ -836,7 +849,7 @@ export function usePoseTracker() {
         window.speechSynthesis.cancel();
       }
     };
-  }, [stopCameraStream, stopLiveClock, syncCanvasDimensions]);
+  }, [cancelScheduledFrame, stopCameraStream, stopLiveClock, syncCanvasDimensions]);
 
   return {
     videoRef,
