@@ -49,7 +49,9 @@ export function usePoseTracker() {
   const liveSessionRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const uploadObjectUrlRef = useRef(null);
+  const uploadEndedHandlerRef = useRef(null);
   const animationFrameIdRef = useRef(null);
+  const frameCallbackTypeRef = useRef(null);
   const visualCueTimerRef = useRef(null);
   const timerIntervalRef = useRef(null);
 
@@ -147,13 +149,17 @@ export function usePoseTracker() {
     if (!video || !isSessionActiveRef.current) return;
 
     if (video.requestVideoFrameCallback) {
+      frameCallbackTypeRef.current = 'video';
       animationFrameIdRef.current = video.requestVideoFrameCallback(() => {
         animationFrameIdRef.current = null;
+        frameCallbackTypeRef.current = null;
         processFrameTickRef.current?.();
       });
     } else {
+      frameCallbackTypeRef.current = 'animation';
       animationFrameIdRef.current = requestAnimationFrame(() => {
         animationFrameIdRef.current = null;
+        frameCallbackTypeRef.current = null;
         processFrameTickRef.current?.();
       });
     }
@@ -709,11 +715,23 @@ export function usePoseTracker() {
         video.src = uploadObjectUrlRef.current;
 
         // Crucial: Handle video ended directly on the element
+        if (uploadEndedHandlerRef.current) {
+          video.removeEventListener('ended', uploadEndedHandlerRef.current);
+        }
         const onVideoEnded = () => {
           isSessionActiveRef.current = false;
+          uploadEndedHandlerRef.current = null;
           runFinalFormScoringRef.current?.();
         };
+        uploadEndedHandlerRef.current = onVideoEnded;
         video.addEventListener('ended', onVideoEnded, { once: true });
+        video.onerror = () => {
+          isSessionActiveRef.current = false;
+          setIsAnalyzing(false);
+          setAnalysisFinalized(true);
+          analysisFinalizedRef.current = true;
+          setCoachingAdvice('This video could not be decoded by your browser. Try exporting it as MP4 (H.264) and upload again.');
+        };
 
         video.onloadeddata = () => {
           requestAnimationFrame(() => {
@@ -725,6 +743,11 @@ export function usePoseTracker() {
               })
               .catch((err) => {
                 console.warn('Video playback warning:', err);
+                isSessionActiveRef.current = false;
+                setIsAnalyzing(false);
+                setAnalysisFinalized(true);
+                analysisFinalizedRef.current = true;
+                setCoachingAdvice('Playback was blocked or this video format is unsupported. Try an MP4 (H.264) clip and start again.');
               });
           });
         };
@@ -749,6 +772,12 @@ export function usePoseTracker() {
     const video = videoRef.current;
     if (video) {
       video.pause();
+      if (uploadEndedHandlerRef.current) {
+        video.removeEventListener('ended', uploadEndedHandlerRef.current);
+        uploadEndedHandlerRef.current = null;
+      }
+      video.onloadeddata = null;
+      video.onerror = null;
       video.src = '';
       video.srcObject = null;
     }
@@ -775,13 +804,27 @@ export function usePoseTracker() {
     return () => {
       window.removeEventListener('resize', handleResize);
       isSessionActiveRef.current = false;
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
+      if (animationFrameIdRef.current !== null) {
+        if (frameCallbackTypeRef.current === 'video' && videoRef.current?.cancelVideoFrameCallback) {
+          videoRef.current.cancelVideoFrameCallback(animationFrameIdRef.current);
+        } else {
+          cancelAnimationFrame(animationFrameIdRef.current);
+        }
+        animationFrameIdRef.current = null;
+        frameCallbackTypeRef.current = null;
       }
       stopCameraStream();
       stopLiveClock();
       if (visualCueTimerRef.current) {
         clearTimeout(visualCueTimerRef.current);
+      }
+      if (uploadEndedHandlerRef.current && videoRef.current) {
+        videoRef.current.removeEventListener('ended', uploadEndedHandlerRef.current);
+        uploadEndedHandlerRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.onloadeddata = null;
+        videoRef.current.onerror = null;
       }
       if (uploadObjectUrlRef.current) {
         URL.revokeObjectURL(uploadObjectUrlRef.current);
